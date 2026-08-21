@@ -124,6 +124,11 @@ export function LivePreview({ code, language, autoUpdate = true }: LivePreviewPr
           </body></html>`;
         }
 
+      case 'plaintext':
+        return `<!DOCTYPE html>
+<html><head><meta charset=Tf-8><style>body { padding: 24px; font-family: 'JetBrains Mono', monospace; font-size: 14px; white-space: pre-wrap; word-wrap: break-word; color: #333; line-height: 1.6; }</style></head>
+<body>${source.replace(/      default:/g, '      default:amp;').replace(/</g, '      default:lt;')}</body></html>`;
+
       default:
         return `<!DOCTYPE html><html><body>
         <div style="padding:24px;color:#888;font-family:system-ui;text-align:center;margin-top:40px;">
@@ -148,7 +153,7 @@ export function LivePreview({ code, language, autoUpdate = true }: LivePreviewPr
     if (!autoMode) return;
 
     // Only auto-preview for HTML, CSS, JS, JSX, JSON
-    const autoLanguages = ['html', 'css', 'javascript', 'jsx', 'json'];
+    const autoLanguages = ['html', 'css', 'javascript', 'jsx', 'json', 'plaintext'];
     if (!autoLanguages.includes(language)) return;
 
     const timer = setTimeout(() => {
@@ -193,7 +198,7 @@ export function LivePreview({ code, language, autoUpdate = true }: LivePreviewPr
     }
   }, [consoleLines]);
 
-  const hasPreview = ['html', 'css', 'javascript', 'jsx', 'json'].includes(language);
+  const hasPreview = ['html', 'css', 'javascript', 'jsx', 'json', 'plaintext'].includes(language);
 
   if (!hasPreview) {
     return (

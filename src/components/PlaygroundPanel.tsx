@@ -33,8 +33,8 @@ export function PlaygroundPanel() {
   const clearOutput = useIDEStore(s => s.clearOutput);
   const monacoRef = useRef<any>(null);
   const editorRef = useRef<any>(null);
-  const [selectedLang, setSelectedLang] = useState('html');
-  const [code, setCode] = useState(STARTER_CODE['html']);
+  const [selectedLang, setSelectedLang] = useState('plaintext');
+  const [code, setCode] = useState(STARTER_CODE['plaintext']);
   const [langDropdown, setLangDropdown] = useState(false);
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('split');
@@ -92,7 +92,7 @@ export function PlaygroundPanel() {
   };
 
   const currentLang = supportedLanguages.find(l => l.id === selectedLang);
-  const hasPreview = ['html', 'css', 'javascript', 'jsx', 'json'].includes(selectedLang);
+  const hasPreview = ['html', 'css', 'javascript', 'jsx', 'json', 'plaintext'].includes(selectedLang);
 
   // On mobile, default to 'code' mode; on desktop default to 'split'
   useEffect(() => {

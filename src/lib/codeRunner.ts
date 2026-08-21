@@ -255,6 +255,11 @@ export async function runCode(
       runJSON(code, onOutput, onError);
       break;
 
+    case 'plaintext':
+      onOutput(code);
+      onStatus('Text displayed.');
+      break;
+
     default:
       onError(`In-browser execution is not available for "${language}". Supported languages: JavaScript, TypeScript, Python, HTML, CSS, and JSON.`);
       break;
@@ -275,4 +280,5 @@ export const supportedLanguages = [
   { id: 'html', label: 'HTML', ext: 'html', note: 'Renders a live preview' },
   { id: 'css', label: 'CSS', ext: 'css', note: 'Renders a live preview with sample content' },
   { id: 'json', label: 'JSON', ext: 'json', note: 'Validates and formats' },
+  { id: 'plaintext', label: 'Plain Text', ext: 'txt', note: 'Type anything — no syntax highlighting' },
 ];
