@@ -1,5 +1,6 @@
-import { useIDEStore } from '@/hooks/useIDEStore';
+import { useIDEStore, getRunnerLanguage } from '@/hooks/useIDEStore';
 import { fileSystem } from '@/lib/fileSystem';
+import { runCode } from '@/lib/codeRunner';
 
 export interface VoiceCommand {
   patterns: RegExp[];
@@ -7,7 +8,7 @@ export interface VoiceCommand {
   execute: (match: RegExpMatchArray, transcript: string) => void;
 }
 
-function speak(text: string) {
+export function speak(text: string) {
   if ('speechSynthesis' in window) {
     speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
@@ -16,18 +17,6 @@ function speak(text: string) {
     speechSynthesis.speak(utterance);
   }
   useIDEStore.getState().setVoiceFeedback(text);
-}
-
-function findFileByName(nodes: any[], name: string): any | null {
-  const lower = name.toLowerCase();
-  for (const n of nodes) {
-    if (n.type === 'file' && (n.name.toLowerCase() === lower || n.path.toLowerCase().includes(lower))) return n;
-    if (n.children) {
-      const found = findFileByName(n.children, name);
-      if (found) return found;
-    }
-  }
-  return null;
 }
 
 export const voiceCommands: VoiceCommand[] = [
@@ -232,24 +221,80 @@ export const voiceCommands: VoiceCommand[] = [
     },
   },
 
+  // Run / Compile code
+  {
+    patterns: [/^run\s+code/i, /^compile/i, /^execute\s+code/i, /^run\s+this/i, /^run\s+file/i, /^run\s+program/i],
+    description: 'Run or compile the current file in the in-browser compiler',
+    execute: async () => {
+      const state = useIDEStore.getState();
+      const activeTab = state.activeTab;
+      if (!activeTab) {
+        speak('No file open to run');
+        return;
+      }
+
+      const tab = state.openTabs.find(t => t.path === activeTab);
+      if (!tab) {
+        speak('No file open to run');
+        return;
+      }
+
+      const runnerLang = getRunnerLanguage(tab.name);
+      if (!runnerLang) {
+        speak(`Cannot run ${tab.name} in the browser. Supported languages: JavaScript, TypeScript, Python, HTML, CSS, and JSON.`);
+        return;
+      }
+
+      // Save before running
+      if (tab.dirty) {
+        await state.saveFile(activeTab);
+      }
+
+      speak(`Running ${tab.name}`);
+
+      state.clearOutput();
+      state.setRunning(true);
+      state.setOutputVisible(true);
+      state.setTerminalVisible(false);
+      state.setRunStatus('Starting…');
+
+      const onOutput = (text: string) => state.addOutputLine({ text, type: 'output' as const });
+      const onError = (text: string) => state.addOutputLine({ text, type: 'error' as const });
+      const onStatus = (status: string) => state.setRunStatus(status);
+
+      try {
+        const result = await runCode(runnerLang, tab.content, onOutput, onError, onStatus);
+        if (result.htmlPreview !== undefined) {
+          state.setHtmlPreview(result.htmlPreview);
+        }
+        speak('Execution completed');
+      } catch (e: any) {
+        speak('Execution failed');
+        state.addOutputLine({ text: `Execution failed: ${e?.message || String(e)}`, type: 'error' as const });
+      } finally {
+        state.setRunning(false);
+      }
+    },
+  },
+
   // Terminal commands (simulated)
   {
-    patterns: [/^run\s+(.+)/i, /^execute\s+(.+)/i],
-    description: 'Run a command in the terminal',
+    patterns: [/^run\s+(build|dev|test|lint|start|install)/i, /^npm\s+(.+)/i],
+    description: 'Run a build or dev command in the terminal',
     execute: (match) => {
       const cmd = match[1].trim();
       const state = useIDEStore.getState();
       state.setTerminalVisible(true);
       state.addTerminalLine({ text: `$ ${cmd}`, type: 'command' });
 
-      // Simulated command responses
       setTimeout(() => {
         const responses: Record<string, string[]> = {
           'build': ['✓ Compiled successfully', '✓ Build complete'],
-          'dev': ['▶ Starting dev server...', '▶ Ready on http://localhost:3000'],
+          'dev': ['▶ Starting development server...', '▶ Ready on http://localhost:3000'],
           'test': ['✓ All tests passed (3 suites, 12 tests)'],
           'lint': ['✓ No linting errors found'],
           'start': ['▶ Server started on port 3000'],
+          'install': ['✓ Dependencies installed', '✓ added 248 packages'],
         };
 
         const key = Object.keys(responses).find(k => cmd.includes(k));
@@ -269,6 +314,14 @@ export const voiceCommands: VoiceCommand[] = [
     execute: () => {
       useIDEStore.getState().clearTerminal();
       speak('Terminal cleared');
+    },
+  },
+  {
+    patterns: [/^clear\s+output/i],
+    description: 'Clear the output panel',
+    execute: () => {
+      useIDEStore.getState().clearOutput();
+      speak('Output cleared');
     },
   },
 
@@ -312,25 +365,45 @@ export const voiceCommands: VoiceCommand[] = [
     patterns: [/^(?:what\s+)?files\s+are\s+open/i, /^list\s+open\s+(?:files|tabs)/i],
     description: 'List open files',
     execute: () => {
-      const tabs = useIDEStore.getState().openTabs;
-      if (tabs.length === 0) {
+      const state = useIDEStore.getState();
+      if (state.openTabs.length === 0) {
         speak('No files are open');
       } else {
-        speak(`${tabs.length} files open: ${tabs.map(t => t.name).join(', ')}`);
+        const names = state.openTabs.map(t => t.name).join(', ');
+        speak(`Open files: ${names}`);
       }
+    },
+  },
+  {
+    patterns: [/^(?:what\s+is\s+)?the\s+current\s+(?:file|tab|language)/i, /^what\s+am\s+i\s+editing/i],
+    description: 'Report the current file and language',
+    execute: () => {
+      const state = useIDEStore.getState();
+      const tab = state.openTabs.find(t => t.path === state.activeTab);
+      if (tab) {
+        speak(`Editing ${tab.name}, language ${tab.language}`);
+      } else {
+        speak('No file is open');
+      }
+    },
+  },
+  {
+    patterns: [/^help/i, /^what\s+can\s+you\s+do/i, /^commands/i],
+    description: 'List available voice commands',
+    execute: () => {
+      speak('Available commands: open file, create file, delete file, save, run code, go to line, toggle terminal, toggle sidebar, theme dark, format code, undo, redo, clear terminal, and more.');
     },
   },
 ];
 
 export function parseVoiceCommand(transcript: string): VoiceCommand | null {
-  const cleaned = transcript.trim();
+  const normalized = transcript.trim().toLowerCase();
   for (const cmd of voiceCommands) {
     for (const pattern of cmd.patterns) {
-      const match = cleaned.match(pattern);
-      if (match) return cmd;
+      if (pattern.test(transcript)) {
+        return cmd;
+      }
     }
   }
   return null;
 }
-
-export { speak };

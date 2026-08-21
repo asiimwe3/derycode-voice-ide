@@ -16,6 +16,13 @@ export interface TerminalLine {
   type: 'command' | 'output' | 'error' | 'info';
 }
 
+export interface OutputLine {
+  text: string;
+  type: 'output' | 'error' | 'info' | 'success';
+}
+
+export type MobilePanel = 'editor' | 'files' | 'terminal' | 'output' | 'settings';
+
 interface IDEState {
   // Files
   files: FileEntry[];
@@ -51,6 +58,9 @@ interface IDEState {
   terminalVisible: boolean;
   toggleTerminal: () => void;
   setTerminalVisible: (v: boolean) => void;
+  outputVisible: boolean;
+  toggleOutput: () => void;
+  setOutputVisible: (v: boolean) => void;
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (v: boolean) => void;
   settingsOpen: boolean;
@@ -60,6 +70,10 @@ interface IDEState {
   fontSize: number;
   setFontSize: (n: number) => void;
 
+  // Mobile
+  mobilePanel: MobilePanel;
+  setMobilePanel: (p: MobilePanel) => void;
+
   // Theme
   theme: ThemeName;
   setTheme: (t: ThemeName) => void;
@@ -68,6 +82,17 @@ interface IDEState {
   terminalLines: TerminalLine[];
   addTerminalLine: (line: TerminalLine) => void;
   clearTerminal: () => void;
+
+  // Code Runner / Output
+  outputLines: OutputLine[];
+  addOutputLine: (line: OutputLine) => void;
+  clearOutput: () => void;
+  isRunning: boolean;
+  setRunning: (v: boolean) => void;
+  runStatus: string;
+  setRunStatus: (s: string) => void;
+  htmlPreview: string | null;
+  setHtmlPreview: (html: string | null) => void;
 
   // Search
   searchQuery: string;
@@ -86,6 +111,16 @@ export function getLanguage(filename: string): string {
     txt: 'plaintext', env: 'plaintext', dockerfile: 'dockerfile',
   };
   return map[ext] || 'plaintext';
+}
+
+/** Map Monaco language to code runner language */
+export function getRunnerLanguage(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  const map: Record<string, string> = {
+    js: 'javascript', jsx: 'jsx', ts: 'typescript', tsx: 'tsx',
+    py: 'python', html: 'html', css: 'css', json: 'json',
+  };
+  return map[ext] || '';
 }
 
 export const useIDEStore = create<IDEState>((set, get) => ({
@@ -229,6 +264,9 @@ export const useIDEStore = create<IDEState>((set, get) => ({
   terminalVisible: false,
   toggleTerminal: () => set(s => ({ terminalVisible: !s.terminalVisible })),
   setTerminalVisible: (v) => set({ terminalVisible: v }),
+  outputVisible: false,
+  toggleOutput: () => set(s => ({ outputVisible: !s.outputVisible })),
+  setOutputVisible: (v) => set({ outputVisible: v }),
   commandPaletteOpen: false,
   setCommandPaletteOpen: (v) => set({ commandPaletteOpen: v }),
   settingsOpen: false,
@@ -237,6 +275,10 @@ export const useIDEStore = create<IDEState>((set, get) => ({
   toggleMinimap: () => set(s => ({ minimapVisible: !s.minimapVisible })),
   fontSize: 14,
   setFontSize: (n) => set({ fontSize: n }),
+
+  // Mobile
+  mobilePanel: 'editor',
+  setMobilePanel: (p) => set({ mobilePanel: p }),
 
   // Theme
   theme: 'dark',
@@ -247,9 +289,20 @@ export const useIDEStore = create<IDEState>((set, get) => ({
   },
 
   // Terminal
-  terminalLines: [{ text: 'Derycode Voice IDE Terminal v0.2.0', type: 'info' }],
+  terminalLines: [{ text: 'Derycode Voice IDE Terminal v0.2.0', type: 'info' as const }],
   addTerminalLine: (line) => set(state => ({ terminalLines: [...state.terminalLines, line] })),
   clearTerminal: () => set({ terminalLines: [] }),
+
+  // Code Runner / Output
+  outputLines: [],
+  addOutputLine: (line) => set(state => ({ outputLines: [...state.outputLines, line] })),
+  clearOutput: () => set({ outputLines: [], htmlPreview: null }),
+  isRunning: false,
+  setRunning: (v) => set({ isRunning: v }),
+  runStatus: '',
+  setRunStatus: (s) => set({ runStatus: s }),
+  htmlPreview: null,
+  setHtmlPreview: (html) => set({ htmlPreview: html }),
 
   // Search
   searchQuery: '',

@@ -1,5 +1,5 @@
-import { Mic, MicOff, PanelLeft, Terminal as TerminalIcon, Search, Settings, Command, Save } from 'lucide-react';
-import { useIDEStore } from '@/hooks/useIDEStore';
+import { Mic, MicOff, PanelLeft, Terminal as TerminalIcon, Save, Play, Settings } from 'lucide-react';
+import { useIDEStore, getRunnerLanguage } from '@/hooks/useIDEStore';
 import { clsx } from 'clsx';
 
 interface ToolbarProps {
@@ -16,10 +16,22 @@ export function Toolbar({ isListening, onToggleVoice }: ToolbarProps) {
   const setSettingsOpen = useIDEStore(s => s.setSettingsOpen);
   const activeTab = useIDEStore(s => s.activeTab);
   const saveFile = useIDEStore(s => s.saveFile);
+  const openTabs = useIDEStore(s => s.openTabs);
+  const setOutputVisible = useIDEStore(s => s.setOutputVisible);
+
+  const currentTab = openTabs.find(t => t.path === activeTab);
+  const canRun = currentTab ? !!getRunnerLanguage(currentTab.name) : false;
+
+  const handleRun = () => {
+    if (canRun) {
+      setOutputVisible(true);
+      // The OutputPanel's own Run button handles execution when visible
+    }
+  };
 
   return (
-    <div className="flex items-center justify-between px-3 h-11 bg-ide-surface border-b border-ide-border shrink-0">
-      <div className="flex items-center gap-3">
+    <div className="flex items-center justify-between px-2 sm:px-3 h-11 bg-ide-surface border-b border-ide-border shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3">
         <button
           className={clsx('text-ide-muted hover:text-ide-text transition-colors', !sidebarVisible && 'text-ide-accent')}
           onClick={toggleSidebar}
@@ -31,22 +43,22 @@ export function Toolbar({ isListening, onToggleVoice }: ToolbarProps) {
           <div className="w-6 h-6 rounded bg-gradient-to-br from-ide-accent to-purple-500 flex items-center justify-center">
             <span className="text-xs font-bold text-white">D</span>
           </div>
-          <span className="text-sm font-semibold text-ide-text">Derycode</span>
-          <span className="text-xs text-ide-muted">Voice IDE</span>
+          <span className="text-sm font-semibold text-ide-text hidden sm:inline">Derycode</span>
+          <span className="text-xs text-ide-muted hidden sm:inline">Voice IDE</span>
         </div>
       </div>
 
-      <div className="flex-1 flex justify-center px-4">
+      <div className="flex-1 flex justify-center px-2 sm:px-4">
         <button
           className="flex items-center gap-2 bg-ide-bg border border-ide-border rounded-md px-3 py-1 text-xs text-ide-muted hover:border-ide-accent transition-colors w-full max-w-xs"
           onClick={() => setCommandPaletteOpen(true)}
         >
-          <Command size={12} />
-          <span>Search commands...</span>
+          <span className="text-ide-muted">⌘K</span>
+          <span className="truncate">Search…</span>
         </button>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         {activeTab && (
           <button
             className="text-ide-muted hover:text-ide-text transition-colors p-1"
@@ -56,9 +68,19 @@ export function Toolbar({ isListening, onToggleVoice }: ToolbarProps) {
             <Save size={16} />
           </button>
         )}
+        {canRun && (
+          <button
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-ide-success/20 text-ide-success hover:bg-ide-success/30 transition-all"
+            onClick={handleRun}
+            title="Run code"
+          >
+            <Play size={11} />
+            <span className="hidden sm:inline">Run</span>
+          </button>
+        )}
         <button
           className={clsx(
-            'flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all',
+            'flex items-center gap-1.5 px-2 sm:px-3 py-1 rounded-md text-xs font-medium transition-all',
             isListening
               ? 'bg-ide-danger/20 text-ide-danger'
               : 'bg-ide-accent/20 text-ide-accent hover:bg-ide-accent/30'
@@ -67,7 +89,7 @@ export function Toolbar({ isListening, onToggleVoice }: ToolbarProps) {
           title={isListening ? 'Stop listening' : 'Start voice control'}
         >
           {isListening ? <MicOff size={14} /> : <Mic size={14} />}
-          {isListening ? 'Listening' : 'Voice'}
+          <span className="hidden sm:inline">{isListening ? 'Listening' : 'Voice'}</span>
         </button>
         <button
           className={clsx('text-ide-muted hover:text-ide-text transition-colors p-1', terminalVisible && 'text-ide-accent')}
@@ -96,7 +118,7 @@ export function VoiceOverlay({ isListening, voiceTranscript, voiceFeedback }: {
   if (!isListening && !voiceTranscript && !voiceFeedback) return null;
 
   return (
-    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3 pointer-events-none">
+    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3 pointer-events-none px-4">
       {voiceTranscript && (
         <div className="bg-ide-surface border border-ide-border rounded-lg px-4 py-2 max-w-md animate-fade-in">
           <p className="text-sm text-ide-text">{voiceTranscript}</p>
