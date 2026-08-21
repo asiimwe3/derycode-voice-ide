@@ -1,4 +1,4 @@
-import { Mic, MicOff, PanelLeft, Terminal as TerminalIcon, Save, Play, Settings } from 'lucide-react';
+import { Mic, MicOff, PanelLeft, Terminal as TerminalIcon, Save, Play, Settings, Menu } from 'lucide-react';
 import { useIDEStore, getRunnerLanguage } from '@/hooks/useIDEStore';
 import { clsx } from 'clsx';
 
@@ -18,6 +18,7 @@ export function Toolbar({ isListening, onToggleVoice }: ToolbarProps) {
   const saveFile = useIDEStore(s => s.saveFile);
   const openTabs = useIDEStore(s => s.openTabs);
   const setOutputVisible = useIDEStore(s => s.setOutputVisible);
+  const setSideDrawerOpen = useIDEStore(s => s.setSideDrawerOpen);
 
   const currentTab = openTabs.find(t => t.path === activeTab);
   const canRun = currentTab ? !!getRunnerLanguage(currentTab.name) : false;
@@ -25,15 +26,23 @@ export function Toolbar({ isListening, onToggleVoice }: ToolbarProps) {
   const handleRun = () => {
     if (canRun) {
       setOutputVisible(true);
-      // The OutputPanel's own Run button handles execution when visible
     }
   };
 
   return (
     <div className="flex items-center justify-between px-2 sm:px-3 h-11 bg-ide-surface border-b border-ide-border shrink-0">
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* Hamburger menu - mobile only */}
         <button
-          className={clsx('text-ide-muted hover:text-ide-text transition-colors', !sidebarVisible && 'text-ide-accent')}
+          className="text-ide-muted hover:text-ide-text transition-colors md:hidden"
+          onClick={() => setSideDrawerOpen(true)}
+          title="Open menu"
+        >
+          <Menu size={20} />
+        </button>
+        {/* Panel toggle - desktop only */}
+        <button
+          className={clsx('text-ide-muted hover:text-ide-text transition-colors hidden md:block', !sidebarVisible && 'text-ide-accent')}
           onClick={toggleSidebar}
           title="Toggle sidebar"
         >
@@ -53,7 +62,7 @@ export function Toolbar({ isListening, onToggleVoice }: ToolbarProps) {
           className="flex items-center gap-2 bg-ide-bg border border-ide-border rounded-md px-3 py-1 text-xs text-ide-muted hover:border-ide-accent transition-colors w-full max-w-xs"
           onClick={() => setCommandPaletteOpen(true)}
         >
-          <span className="text-ide-muted">⌘K</span>
+          <span className="text-ide-muted hidden sm:inline">⌘K</span>
           <span className="truncate">Search…</span>
         </button>
       </div>
@@ -92,7 +101,7 @@ export function Toolbar({ isListening, onToggleVoice }: ToolbarProps) {
           <span className="hidden sm:inline">{isListening ? 'Listening' : 'Voice'}</span>
         </button>
         <button
-          className={clsx('text-ide-muted hover:text-ide-text transition-colors p-1', terminalVisible && 'text-ide-accent')}
+          className={clsx('text-ide-muted hover:text-ide-text transition-colors p-1 hidden md:block', terminalVisible && 'text-ide-accent')}
           onClick={toggleTerminal}
           title="Toggle terminal"
         >

@@ -21,7 +21,7 @@ export interface OutputLine {
   type: 'output' | 'error' | 'info' | 'success';
 }
 
-export type MobilePanel = 'editor' | 'files' | 'terminal' | 'output' | 'settings';
+export type MobilePanel = 'editor' | 'files' | 'terminal' | 'output' | 'playground' | 'settings';
 
 interface IDEState {
   // Files
@@ -64,7 +64,9 @@ interface IDEState {
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (v: boolean) => void;
   settingsOpen: boolean;
+  sideDrawerOpen: boolean;
   setSettingsOpen: (v: boolean) => void;
+  setSideDrawerOpen: (v: boolean) => void;
   minimapVisible: boolean;
   toggleMinimap: () => void;
   fontSize: number;
@@ -270,7 +272,9 @@ export const useIDEStore = create<IDEState>((set, get) => ({
   commandPaletteOpen: false,
   setCommandPaletteOpen: (v) => set({ commandPaletteOpen: v }),
   settingsOpen: false,
+  sideDrawerOpen: false,
   setSettingsOpen: (v) => set({ settingsOpen: v }),
+  setSideDrawerOpen: (v) => set({ sideDrawerOpen: v }),
   minimapVisible: false,
   toggleMinimap: () => set(s => ({ minimapVisible: !s.minimapVisible })),
   fontSize: 14,

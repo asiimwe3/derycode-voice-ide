@@ -10,8 +10,9 @@ import { StatusBar } from '@/components/StatusBar';
 import { CommandPalette } from '@/components/CommandPalette';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { OutputPanel } from '@/components/OutputPanel';
+import { PlaygroundPanel } from '@/components/PlaygroundPanel';
 import { BottomNav } from '@/components/BottomNav';
-import { clsx } from 'clsx';
+import { SideDrawer } from '@/components/SideDrawer';
 
 const CodeEditor = dynamic(() => import('@/components/CodeEditor').then(m => m.CodeEditor), { ssr: false });
 const Terminal = dynamic(() => import('@/components/Terminal').then(m => m.Terminal), { ssr: false });
@@ -34,7 +35,6 @@ export default function IDE() {
   const setTheme = useIDEStore(s => s.setTheme);
   const [initialized, setInitialized] = useState(false);
 
-  // Detect mobile
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -43,7 +43,6 @@ export default function IDE() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // Load files from IndexedDB on mount
   useEffect(() => {
     if (!initialized) {
       loadFiles().then(() => {
@@ -57,7 +56,6 @@ export default function IDE() {
     }
   }, [initialized, loadFiles, setTheme]);
 
-  // Open the welcome file after load
   useEffect(() => {
     if (initialized && openTabs.length === 0) {
       const state = useIDEStore.getState();
@@ -70,7 +68,6 @@ export default function IDE() {
     }
   }, [initialized, openTabs.length, openFile]);
 
-  // Voice command handling
   const handleVoiceResult = ({ transcript, isFinal }: { transcript: string; isFinal: boolean }) => {
     setVoiceTranscript(transcript);
     if (isFinal) {
@@ -94,7 +91,6 @@ export default function IDE() {
     setListening(isListening);
   }, [isListening, setListening]);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -127,6 +123,7 @@ export default function IDE() {
     return (
       <div className="flex flex-col h-screen w-screen overflow-hidden bg-ide-bg">
         <Toolbar isListening={isListening} onToggleVoice={toggle} />
+        <SideDrawer />
 
         <div className="flex-1 overflow-hidden">
           {/* Files panel */}
@@ -139,6 +136,13 @@ export default function IDE() {
               <div className="flex-1 overflow-hidden">
                 <FileTree />
               </div>
+            </div>
+          )}
+
+          {/* Playground panel — type code, select language, run */}
+          {mobilePanel === 'playground' && (
+            <div className="h-full">
+              <PlaygroundPanel />
             </div>
           )}
 

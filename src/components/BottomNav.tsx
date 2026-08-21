@@ -1,4 +1,4 @@
-import { Mic, Folder, Code2, Terminal as TerminalIcon, SquareStack, Settings } from 'lucide-react';
+import { Mic, Code2, Terminal as TerminalIcon, SquareStack, Settings, FileText, Menu } from 'lucide-react';
 import { useIDEStore } from '@/hooks/useIDEStore';
 import { clsx } from 'clsx';
 
@@ -10,24 +10,27 @@ interface BottomNavProps {
 export function BottomNav({ isListening, onToggleVoice }: BottomNavProps) {
   const mobilePanel = useIDEStore(s => s.mobilePanel);
   const setMobilePanel = useIDEStore(s => s.setMobilePanel);
+  const setSideDrawerOpen = useIDEStore(s => s.setSideDrawerOpen);
   const dirtyCount = useIDEStore(s => s.openTabs.filter(t => t.dirty).length);
 
   const items = [
-    { id: 'files' as const, icon: Folder, label: 'Files' },
-    { id: 'editor' as const, icon: Code2, label: 'Editor', badge: dirtyCount },
-    { id: 'terminal' as const, icon: TerminalIcon, label: 'Terminal' },
+    { id: 'menu' as const, icon: Menu, label: 'Menu', action: () => setSideDrawerOpen(true) },
+    { id: 'files' as const, icon: FileText, label: 'Files' },
+    { id: 'playground' as const, icon: Code2, label: 'Code' },
+    { id: 'editor' as const, icon: FileText, label: 'Editor', badge: dirtyCount },
     { id: 'output' as const, icon: SquareStack, label: 'Output' },
-    { id: 'settings' as const, icon: Settings, label: 'Settings' },
   ];
 
   return (
     <div className="flex items-center justify-around bg-ide-surface border-t border-ide-border h-14 shrink-0 safe-bottom">
       {items.map(item => {
-        const active = mobilePanel === item.id;
+        const isMenu = item.id === 'menu';
+        const active = !isMenu && mobilePanel === item.id;
+        const onClick = isMenu ? item.action : () => setMobilePanel(item.id as any);
         return (
           <button
             key={item.id}
-            onClick={() => setMobilePanel(item.id)}
+            onClick={onClick}
             className={clsx(
               'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors relative',
               active ? 'text-ide-accent' : 'text-ide-muted'
@@ -44,7 +47,7 @@ export function BottomNav({ isListening, onToggleVoice }: BottomNavProps) {
           </button>
         );
       })}
-      {/* Voice button - floating */}
+      {/* Voice button */}
       <button
         onClick={onToggleVoice}
         className={clsx(
