@@ -1,139 +1,51 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useIDEStore } from '@/hooks/useIDEStore';
+import { buildProjectPreview } from '@/lib/projectBuilder';
+import { fileSystem } from '@/lib/fileSystem';
 import { clsx } from 'clsx';
-import { RefreshCw, ExternalLink, Maximize2, Minimize2, Eye, EyeOff, Terminal as TerminalIcon } from 'lucide-react';
+import { RefreshCw, ExternalLink, Maximize2, Minimize2, Eye, EyeOff, Terminal as TerminalIcon, Smartphone, Package } from 'lucide-react';
 
 interface LivePreviewProps {
   code: string;
   language: string;
   autoUpdate?: boolean;
+  useProjectFiles?: boolean;
+  currentPath?: string;
 }
 
-export function LivePreview({ code, language, autoUpdate = true }: LivePreviewProps) {
+export function LivePreview({ code, language, autoUpdate = true, useProjectFiles = false, currentPath }: LivePreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [autoMode, setAutoMode] = useState(autoUpdate);
   const [fullscreen, setFullscreen] = useState(false);
   const [consoleLines, setConsoleLines] = useState<{ text: string; type: string }[]>([]);
   const [showConsole, setShowConsole] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [multiFile, setMultiFile] = useState(useProjectFiles);
   const consoleScrollRef = useRef<HTMLDivElement>(null);
   const [isReady, setIsReady] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Generate HTML based on language
-  const buildPreviewHTML = useCallback((lang: string, source: string): string => {
+  // Generate standalone preview HTML (for playground mode)
+  const buildStandaloneHTML = useCallback((lang: string, source: string): string => {
     switch (lang) {
       case 'html':
         return source;
-
       case 'css':
-        return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><style>${source}</style></head>
-<body>
-  <div style="padding: 24px; font-family: system-ui, sans-serif;">
-    <h1>CSS Preview</h1>
-    <p>This paragraph shows your styles applied to text.</p>
-    <button>Sample Button</button>
-    <a href="#">A link</a>
-    <ul><li>Item One</li><li>Item Two</li><li>Item Three</li></ul>
-    <input type="text" placeholder="Text input" />
-    <div style="margin-top: 16px; padding: 16px; border: 1px solid #ccc; border-radius: 8px;">
-      <p>A box with padding and border</p>
-    </div>
-  </div>
-</body>
-</html>`;
-
+        return '<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"><style>' + source + '</style></head>\n<body>\n<div style="padding:24px;font-family:system-ui,sans-serif;"><h1>CSS Preview</h1><p>Styled paragraph.</p><button>Button</button><input type="text" placeholder="Input"><ul><li>Item 1</li><li>Item 2</li></ul></div>\n</body>\n</html>';
       case 'javascript':
       case 'jsx':
-        return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body>
-  <div id="app" style="padding: 24px; font-family: system-ui, sans-serif;"></div>
-  <script>
-    (function() {
-      const origLog = console.log;
-      const origWarn = console.warn;
-      const origErr = console.error;
-      const origInfo = console.info;
-      const send = (type, args) => {
-        const text = args.map(a => {
-          if (a === null) return 'null';
-          if (a === undefined) return 'undefined';
-          if (typeof a === 'object') { try { return JSON.stringify(a, null, 2); } catch { return String(a); } }
-          return String(a);
-        }).join(' ');
-        window.parent.postMessage({ source: 'live-preview', type, text }, '*');
-      };
-      console.log = (...a) => { send('log', a); origLog(...a); };
-      console.warn = (...a) => { send('warn', a); origWarn(...a); };
-      console.error = (...a) => { send('error', a); origErr(...a); };
-      console.info = (...a) => { send('info', a); origInfo(...a); };
-      window.onerror = (msg, src, line, col, err) => {
-        send('error', [err ? err.message + '\\n' + (err.stack || '') : msg]);
-      };
-      try {
-        ${source}
-      } catch (e) {
-        send('error', [e.message + '\\n' + (e.stack || '')]);
-      }
-    })();
-  </script>
-</body>
-</html>`;
-
-      case 'typescript':
-      case 'tsx':
-        // TypeScript needs transpilation — show placeholder, actual execution happens via Run button
-        return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"></head>
-<body>
-  <div style="padding: 24px; font-family: system-ui, sans-serif; color: #888; text-align: center; margin-top: 40px;">
-    <p style="font-size: 14px;">TypeScript preview requires compilation.</p>
-    <p style="font-size: 12px; color: #aaa;">Click the <strong>Run</strong> button to compile and execute TypeScript.</p>
-  </div>
-</body></html>`;
-
-      case 'python':
-        return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"></head>
-<body>
-  <div style="padding: 24px; font-family: system-ui, sans-serif; color: #888; text-align: center; margin-top: 40px;">
-    <p style="font-size: 14px;">Python preview uses Pyodide (WebAssembly).</p>
-    <p style="font-size: 12px; color: #aaa;">Click the <strong>Run</strong> button to execute Python.</p>
-  </div>
-</body></html>`;
-
+        return '<!DOCTYPE html>\n<html><head><meta charset="utf-8"></head>\n<body>\n<div id="app" style="padding:24px;font-family:system-ui,sans-serif;"></div>\n<script>\n(function(){var o=console.log,w=console.warn,e=console.error;function s(t,a){var tx=Array.from(a).map(function(x){if(typeof x==="object"){try{return JSON.stringify(x,null,2)}catch(e){return String(x)}}return String(x)}).join(" ");window.parent.postMessage({source:"live-preview",type:t,text:tx},"*")}\nconsole.log=function(){s("log",arguments);o.apply(console,arguments)};console.warn=function(){s("warn",arguments);w.apply(console,arguments)};console.error=function(){s("error",arguments);e.apply(console,arguments)};window.onerror=function(m,s,l,c,err){s("error",[err?err.message:m])};\n})();\n<\/script>\n<script>\ntry{\n' + source + '\n}catch(e){console.error(e.message)}\n</script>\n</body>\n</html>';
+      case 'plaintext':
+        return '<!DOCTYPE html>\n<html><head><meta charset="utf-8"><style>body{padding:24px;font-family:JetBrains Mono,monospace;font-size:14px;white-space:pre-wrap;word-wrap:break-word;color:#333;line-height:1.6;}</style></head>\n<body>' + source.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</body>\n</html>';
       case 'json':
         try {
-          const parsed = JSON.parse(source);
-          const formatted = JSON.stringify(parsed, null, 2);
-          return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>
-  body { padding: 24px; font-family: 'JetBrains Mono', monospace; font-size: 13px; }
-  pre { background: #f4f4f8; padding: 16px; border-radius: 8px; overflow-x: auto; }
-  .key { color: #7c83ff; } .str { color: #2ecc71; } .num { color: #e67e22; } .bool { color: #e74c3c; }
-</style></head>
-<body>
-  <pre>${formatted.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</pre>
-</body></html>`;
+          JSON.parse(source);
+          return '<!DOCTYPE html>\n<html><head><meta charset="utf-8"><style>body{padding:24px;font-family:JetBrains Mono,monospace;font-size:13px;background:#f4f4f8;}pre{background:white;padding:16px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.05);}</style></head>\n<body><pre>' + JSON.stringify(JSON.parse(source), null, 2).replace(/</g, '&lt;') + '</pre></body>\n</html>';
         } catch {
-          return `<!DOCTYPE html><html><body>
-          <div style="padding:24px;color:#e74c3c;font-family:monospace;">Invalid JSON</div>
-          </body></html>`;
+          return '<!DOCTYPE html><html><body><div style="padding:24px;color:#e74c3c;font-family:monospace;">Invalid JSON</div></body></html>';
         }
-
-      case 'plaintext':
-        return `<!DOCTYPE html>
-<html><head><meta charset=Tf-8><style>body { padding: 24px; font-family: 'JetBrains Mono', monospace; font-size: 14px; white-space: pre-wrap; word-wrap: break-word; color: #333; line-height: 1.6; }</style></head>
-<body>${source.replace(/      default:/g, '      default:amp;').replace(/</g, '      default:lt;')}</body></html>`;
-
       default:
-        return `<!DOCTYPE html><html><body>
-        <div style="padding:24px;color:#888;font-family:system-ui;text-align:center;margin-top:40px;">
-          No live preview for this language. Use the Run button to execute.
-        </div></body></html>`;
+        return '<!DOCTYPE html><html><body><div style="padding:24px;color:#888;font-family:system-ui;text-align:center;margin-top:40px;">No live preview for ' + lang + '. Use Run button.</div></body></html>';
     }
   }, []);
 
@@ -152,46 +64,66 @@ export function LivePreview({ code, language, autoUpdate = true }: LivePreviewPr
   useEffect(() => {
     if (!autoMode) return;
 
-    // Only auto-preview for HTML, CSS, JS, JSX, JSON
     const autoLanguages = ['html', 'css', 'javascript', 'jsx', 'json', 'plaintext'];
     if (!autoLanguages.includes(language)) return;
 
-    const timer = setTimeout(() => {
+    let cancelled = false;
+
+    const timer = setTimeout(async () => {
       setConsoleLines([]);
-      const html = buildPreviewHTML(language, code);
-      if (iframeRef.current) {
+      let html: string;
+
+      if (multiFile) {
+        setLoading(true);
+        try {
+          html = await buildProjectPreview(code, language, currentPath);
+        } catch {
+          html = buildStandaloneHTML(language, code);
+        }
+        setLoading(false);
+      } else {
+        html = buildStandaloneHTML(language, code);
+      }
+
+      if (!cancelled && iframeRef.current) {
         const doc = iframeRef.current.contentDocument;
         if (doc) {
           doc.open();
           doc.write(html);
           doc.close();
         }
+        setIsReady(true);
       }
-      setIsReady(true);
     }, 300);
 
-    return () => clearTimeout(timer);
-  }, [code, language, autoMode, buildPreviewHTML, refreshKey]);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [code, language, autoMode, multiFile, currentPath, refreshKey, buildStandaloneHTML]);
 
-  // Manual refresh
   const handleRefresh = () => {
     setConsoleLines([]);
     setRefreshKey(k => k + 1);
   };
 
-  // Open in new tab
   const handleOpenTab = () => {
-    const html = buildPreviewHTML(language, code);
+    let html: string;
+    if (multiFile) {
+      buildProjectPreview(code, language, currentPath).then(h => {
+        const blob = new Blob([h], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      });
+      return;
+    }
+    html = buildStandaloneHTML(language, code);
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   };
 
-  // Toggle fullscreen
   const toggleFullscreen = () => setFullscreen(f => !f);
 
-  // Scroll console to bottom
   useEffect(() => {
     if (consoleScrollRef.current) {
       consoleScrollRef.current.scrollTop = consoleScrollRef.current.scrollHeight;
@@ -199,6 +131,7 @@ export function LivePreview({ code, language, autoUpdate = true }: LivePreviewPr
   }, [consoleLines]);
 
   const hasPreview = ['html', 'css', 'javascript', 'jsx', 'json', 'plaintext'].includes(language);
+  const canMultiFile = ['html', 'css', 'javascript', 'jsx'].includes(language);
 
   if (!hasPreview) {
     return (
@@ -210,9 +143,7 @@ export function LivePreview({ code, language, autoUpdate = true }: LivePreviewPr
     );
   }
 
-  const container = fullscreen
-    ? 'fixed inset-0 z-50 bg-ide-bg flex flex-col'
-    : 'flex flex-col h-full';
+  const container = fullscreen ? 'fixed inset-0 z-50 bg-ide-bg flex flex-col' : 'flex flex-col h-full';
 
   return (
     <div className={container}>
@@ -226,8 +157,28 @@ export function LivePreview({ code, language, autoUpdate = true }: LivePreviewPr
               Live
             </span>
           )}
+          {loading && (
+            <span className="flex items-center gap-1 text-[10px] text-ide-accent">
+              <span className="w-1.5 h-1.5 rounded-full bg-ide-accent animate-pulse" />
+              Building...
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
+          {/* Multi-file toggle */}
+          {canMultiFile && (
+            <button
+              onClick={() => setMultiFile(m => !m)}
+              className={clsx(
+                'p-1.5 rounded transition-colors flex items-center gap-1',
+                multiFile ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-muted hover:text-ide-text'
+              )}
+              title={multiFile ? 'Multi-file: ON (combines files from tree)' : 'Multi-file: OFF (current code only)'}
+            >
+              <Package size={13} />
+              <span className="text-[10px] hidden sm:inline">{multiFile ? 'Linked' : 'Single'}</span>
+            </button>
+          )}
           <button
             onClick={() => setAutoMode(a => !a)}
             className={clsx(
@@ -261,6 +212,16 @@ export function LivePreview({ code, language, autoUpdate = true }: LivePreviewPr
           </button>
         </div>
       </div>
+
+      {/* Multi-file badge */}
+      {multiFile && canMultiFile && (
+        <div className="px-3 py-1 bg-ide-accent/5 border-b border-ide-accent/10 shrink-0">
+          <span className="text-[10px] text-ide-accent flex items-center gap-1">
+            <Package size={10} />
+            Linked preview — combining HTML + CSS + JS files from your project
+          </span>
+        </div>
+      )}
 
       {/* Iframe preview */}
       <div className="flex-1 min-h-0 relative">

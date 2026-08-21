@@ -70,7 +70,11 @@ interface IDEState {
   minimapVisible: boolean;
   toggleMinimap: () => void;
   fontSize: number;
+  minimapEnabled: boolean;
+  devicePreview: string;
   setFontSize: (n: number) => void;
+  setMinimapEnabled: (v: boolean) => void;
+  setDevicePreview: (v: string) => void;
 
   // Mobile
   mobilePanel: MobilePanel;
@@ -278,7 +282,11 @@ export const useIDEStore = create<IDEState>((set, get) => ({
   minimapVisible: false,
   toggleMinimap: () => set(s => ({ minimapVisible: !s.minimapVisible })),
   fontSize: 14,
+  minimapEnabled: false,
+  devicePreview: 'responsive',
   setFontSize: (n) => set({ fontSize: n }),
+  setMinimapEnabled: (v) => set({ minimapEnabled: v }),
+  setDevicePreview: (v) => set({ devicePreview: v }),
 
   // Mobile
   mobilePanel: 'editor',

@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic';
 import { useIDEStore } from '@/hooks/useIDEStore';
 import { runCode, supportedLanguages } from '@/lib/codeRunner';
 import { LivePreview } from '@/components/LivePreview';
+import { SnippetsPanel } from '@/components/SnippetsPanel';
 import {
   downloadCode, buildAndDownloadApp, downloadProjectZip,
   generateShareUrl, parseShareUrl, PROJECT_TEMPLATES
@@ -11,21 +12,22 @@ import { fileSystem } from '@/lib/fileSystem';
 import { clsx } from 'clsx';
 import {
   Play, Trash2, Loader2, ChevronDown, FileCode2, Copy, Check,
-  Code2, Eye, Columns, Download, Package, Share2, Rocket, X, FilePlus
+  Code2, Eye, Columns, Download, Package, Share2, Rocket, X, FilePlus,
+  Sparkles, Map as MapIcon
 } from 'lucide-react';
 
 const CodeEditor = dynamic(() => import('@monaco-editor/react').then(m => m.default), { ssr: false });
 
 const STARTER_CODE: Record<string, string> = {
-  javascript: `// Type your JavaScript code here\n// The live preview shows console output as you type\nconsole.log("Hello, World!");\n\nconst numbers = [1, 2, 3, 4, 5];\nconst sum = numbers.reduce((a, b) => a + b, 0);\nconsole.log("Sum:", sum);\n\n// Try adding DOM manipulation:\n// document.body.innerHTML = "<h1>Hello!</h1>";\n`,
-  typescript: `// Type your TypeScript code here\ninterface User {\n  name: string;\n  age: number;\n}\n\nconst user: User = { name: "Alice", age: 28 };\nconsole.log(\`Hello, \${user.name}!\`);\n`,
-  tsx: `// Type your TypeScript React code here\nconst Button = (props: { label: string }) => {\n  return props.label;\n};\n\nconsole.log(Button({ label: "Click me" }));\n`,
-  jsx: `// Type your JavaScript React code here\nconst greet = (name) => "Hello, " + name + "!";\nconsole.log(greet("World"));\n`,
-  python: `# Type your Python code here\nprint("Hello, World!")\n\nnumbers = [1, 2, 3, 4, 5]\ntotal = sum(numbers)\nprint(f"Sum: {total}")\n`,
-  html: `<!-- Type your HTML here -->\n<!-- The preview updates live as you type -->\n<!DOCTYPE html>\n<html>\n<head>\n  <title>My Page</title>\n  <style>\n    body {\n      font-family: system-ui, sans-serif;\n      padding: 24px;\n      background: linear-gradient(135deg, #667eea, #764ba2);\n      color: white;\n      min-height: 100vh;\n    }\n    .card {\n      background: rgba(255,255,255,0.15);\n      backdrop-filter: blur(10px);\n      padding: 32px;\n      border-radius: 16px;\n      text-align: center;\n    }\n    h1 { margin: 0 0 8px; }\n    button {\n      background: rgba(255,255,255,0.2);\n      border: 1px solid rgba(255,255,255,0.3);\n      color: white;\n      padding: 12px 24px;\n      border-radius: 8px;\n      cursor: pointer;\n    }\n  </style>\n</head>\n<body>\n  <div class="card">\n    <h1>Live Preview</h1>\n    <p>Edit the code and watch it update in real time.</p>\n    <button onclick="alert('Clicked!')">Click Me</button>\n  </div>\n</body>\n</html>\n`,
-  css: `/* Type your CSS here */\n/* The preview shows sample content with your styles */\nbody {\n  font-family: system-ui, sans-serif;\n  background: #0f0f1e;\n  color: #e0e0f0;\n}\nh1 {\n  color: #7c83ff;\n  font-size: 32px;\n  text-transform: uppercase;\n  letter-spacing: 2px;\n}\nbutton {\n  background: linear-gradient(135deg, #7c83ff, #9aa0ff);\n  color: white;\n  border: none;\n  padding: 12px 24px;\n  border-radius: 8px;\n  cursor: pointer;\n  font-size: 14px;\n}\nbutton:hover {\n  transform: translateY(-2px);\n  box-shadow: 0 4px 12px rgba(124, 131, 255, 0.4);\n}\ninput {\n  padding: 8px 12px;\n  border: 1px solid #2d2d4a;\n  border-radius: 6px;\n  background: #1a1a2e;\n  color: #e0e0f0;\n}\n`,
-  json: `{\n  "name": "My Project",\n  "version": "1.0.0",\n  "languages": ["JavaScript", "TypeScript", "Python"]\n}\n`,
-  plaintext: 'Type anything here…\n\nThis is plain text — no syntax highlighting.\nType notes, pseudocode, or anything you want.\nThe live preview shows your text as-is.\n',
+  javascript: `// JavaScript — live preview shows console output\nconsole.log("Hello, World!");\n\nconst numbers = [1, 2, 3, 4, 5];\nconst sum = numbers.reduce((a, b) => a + b, 0);\nconsole.log("Sum:", sum);\n`,
+  typescript: `// TypeScript — click Run to compile and execute\ninterface User {\n  name: string;\n  age: number;\n}\n\nconst user: User = { name: "Alice", age: 28 };\nconsole.log(\`Hello, \${user.name}!\`);\n`,
+  tsx: `// TypeScript React — click Run to execute\nconst Button = (props: { label: string }) => props.label;\nconsole.log(Button({ label: "Click me" }));\n`,
+  jsx: `// JavaScript React — live preview shows output\nconst greet = (name) => "Hello, " + name + "!";\nconsole.log(greet("World"));\n`,
+  python: `# Python — click Run to execute (loads Pyodide)\nprint("Hello, World!")\n\nnumbers = [1, 2, 3, 4, 5]\nprint(f"Sum: {sum(numbers)}")\n`,
+  html: `<!-- HTML — live preview updates as you type -->\n<!DOCTYPE html>\n<html>\n<head>\n  <title>My App</title>\n  <style>\n    body {\n      font-family: system-ui, sans-serif;\n      padding: 24px;\n      background: linear-gradient(135deg, #667eea, #764ba2);\n      color: white;\n      min-height: 100vh;\n      margin: 0;\n    }\n    .card {\n      background: rgba(255,255,255,0.15);\n      backdrop-filter: blur(10px);\n      padding: 32px;\n      border-radius: 16px;\n      text-align: center;\n    }\n    button {\n      background: rgba(255,255,255,0.2);\n      border: 1px solid rgba(255,255,255,0.3);\n      color: white;\n      padding: 12px 24px;\n      border-radius: 8px;\n      cursor: pointer;\n      font-size: 16px;\n    }\n  </style>\n</head>\n<body>\n  <div class="card">\n    <h1>Hello World</h1>\n    <p>Edit this and watch it update live.</p>\n    <button onclick="alert('Clicked!')">Click Me</button>\n  </div>\n</body>\n</html>\n`,
+  css: `/* CSS — live preview shows styled sample content */\nbody {\n  font-family: system-ui, sans-serif;\n  background: #0f0f1e;\n  color: #e0e0f0;\n  margin: 0;\n  padding: 24px;\n}\nh1 {\n  color: #7c83ff;\n  font-size: 32px;\n  text-transform: uppercase;\n  letter-spacing: 2px;\n}\nbutton {\n  background: linear-gradient(135deg, #7c83ff, #9aa0ff);\n  color: white;\n  border: none;\n  padding: 12px 24px;\n  border-radius: 8px;\n  cursor: pointer;\n}\n`,
+  json: `{\n  "name": "My Project",\n  "version": "1.0.0",\n  "features": ["live preview", "voice control", "snippets"]\n}\n`,
+  plaintext: 'Type anything here…\n\nThis is plain text — no syntax highlighting.\nThe live preview shows your text as-is.\n',
 };
 
 type ViewMode = 'code' | 'preview' | 'split';
@@ -33,6 +35,8 @@ type ViewMode = 'code' | 'preview' | 'split';
 export function PlaygroundPanel() {
   const theme = useIDEStore(s => s.theme);
   const fontSize = useIDEStore(s => s.fontSize);
+  const minimapEnabled = useIDEStore(s => s.minimapEnabled);
+  const setMinimapEnabled = useIDEStore(s => s.setMinimapEnabled);
   const isRunning = useIDEStore(s => s.isRunning);
   const setRunning = useIDEStore(s => s.setRunning);
   const runStatus = useIDEStore(s => s.runStatus);
@@ -51,8 +55,10 @@ export function PlaygroundPanel() {
   const [viewMode, setViewMode] = useState<ViewMode>('split');
   const [isMobile, setIsMobile] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showSnippets, setShowSnippets] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [toast, setToast] = useState('');
+  const [useProjectFiles, setUseProjectFiles] = useState(false);
 
   const themeMap: Record<string, string> = {
     dark: 'vs-dark',
@@ -61,7 +67,6 @@ export function PlaygroundPanel() {
     solarized: 'vs-dark',
   };
 
-  // Detect mobile
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
@@ -69,7 +74,6 @@ export function PlaygroundPanel() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // Check for shared code in URL on mount
   useEffect(() => {
     const shared = parseShareUrl();
     if (shared) {
@@ -89,6 +93,7 @@ export function PlaygroundPanel() {
     setCode(STARTER_CODE[lang] || '');
     setLangDropdown(false);
     clearOutput();
+    setUseProjectFiles(false);
   };
 
   const handleRun = async () => {
@@ -96,18 +101,16 @@ export function PlaygroundPanel() {
     clearOutput();
     setRunning(true);
     setRunStatus('Starting…');
-
     const onOutput = (text: string) => addOutputLine({ text, type: 'output' as const });
     const onError = (text: string) => addOutputLine({ text, type: 'error' as const });
     const onStatus = (status: string) => setRunStatus(status);
-
     try {
       await runCode(selectedLang, code, onOutput, onError, onStatus);
       if (!outputLines.some(l => l.type === 'error')) {
-        addOutputLine({ text: '\n✓ Execution completed successfully.', type: 'success' as const });
+        addOutputLine({ text: '\n✓ Done.', type: 'success' as const });
       }
     } catch (e: any) {
-      addOutputLine({ text: `Execution failed: ${e?.message || String(e)}`, type: 'error' as const });
+      addOutputLine({ text: `Error: ${e?.message || String(e)}`, type: 'error' as const });
     } finally {
       setRunning(false);
     }
@@ -122,23 +125,19 @@ export function PlaygroundPanel() {
   const handleDownload = () => {
     downloadCode(code, selectedLang);
     setExportMenu(false);
-    showToast(`Downloaded as .${selectedLang}`);
+    showToast('File downloaded!');
   };
 
   const handleBuildApp = () => {
     buildAndDownloadApp(code, selectedLang);
     setExportMenu(false);
-    showToast('Standalone HTML app downloaded!');
+    showToast('Standalone app downloaded!');
   };
 
   const handleDownloadZip = async () => {
     setExportMenu(false);
-    try {
-      await downloadProjectZip();
-      showToast('Project ZIP downloaded!');
-    } catch {
-      showToast('Failed to create ZIP');
-    }
+    try { await downloadProjectZip(); showToast('ZIP downloaded!'); }
+    catch { showToast('ZIP failed'); }
   };
 
   const handleShare = () => {
@@ -163,24 +162,65 @@ export function PlaygroundPanel() {
       });
     }
     await loadFiles();
-    // Load the first HTML file into the playground
     const htmlFile = template.files.find((f: { path: string; content: string }) => f.path.endsWith('.html'));
     if (htmlFile) {
       setCode(htmlFile.content);
       setSelectedLang('html');
+      setUseProjectFiles(true);
     }
     showToast(`${template.label} created!`);
+  };
+
+  const handleInsertSnippet = (snippetCode: string) => {
+    if (editorRef.current) {
+      const editor = editorRef.current;
+      const position = editor.getPosition();
+      editor.executeEdits('snippet', [{
+        range: new monacoRef.current.Range(
+          position.lineNumber, position.column,
+          position.lineNumber, position.column
+        ),
+        text: snippetCode,
+      }]);
+    } else {
+      setCode(prev => prev + '\n' + snippetCode);
+    }
+    setShowSnippets(false);
+    showToast('Snippet inserted!');
   };
 
   const currentLang = supportedLanguages.find(l => l.id === selectedLang);
   const hasPreview = ['html', 'css', 'javascript', 'jsx', 'json', 'plaintext'].includes(selectedLang);
   const canBuildApp = ['html', 'css', 'javascript', 'jsx'].includes(selectedLang);
+  const canMultiFile = ['html', 'css', 'javascript', 'jsx'].includes(selectedLang);
 
-  // On mobile, default to 'code' mode; on desktop default to 'split'
   useEffect(() => {
     if (isMobile && viewMode === 'split') setViewMode('code');
     if (!isMobile && viewMode === 'code' && hasPreview) setViewMode('split');
   }, [isMobile]); // eslint-disable-line
+
+  const editorOptions = {
+    fontSize,
+    fontFamily: 'JetBrains Mono, Fira Code, monospace',
+    fontLigatures: true,
+    minimap: { enabled: minimapEnabled },
+    scrollBeyondLastLine: false,
+    tabSize: 2,
+    automaticLayout: true,
+    cursorBlinking: 'smooth' as const,
+    smoothScrolling: true,
+    padding: { top: 12, bottom: 12 },
+    wordWrap: 'on' as const,
+    bracketPairColorization: { enabled: true },
+    guides: { bracketPairs: true, indentation: true },
+    formatOnPaste: true,
+    formatOnType: true,
+    suggestOnTriggerCharacters: true,
+    tabCompletion: 'on' as const,
+    linkedEditing: true,
+    renderWhitespace: 'selection' as const,
+    cursorSmoothCaretAnimation: 'on' as const,
+  };
 
   return (
     <div className="flex flex-col h-full bg-ide-bg relative">
@@ -194,7 +234,7 @@ export function PlaygroundPanel() {
               className="flex items-center gap-1.5 bg-ide-bg border border-ide-border rounded-md px-2.5 py-1.5 text-xs text-ide-text hover:border-ide-accent transition-colors"
             >
               <FileCode2 size={12} className="text-ide-accent" />
-              <span className="truncate max-w-[80px] sm:max-w-none">{currentLang?.label || 'Select Language'}</span>
+              <span className="truncate max-w-[80px] sm:max-w-none">{currentLang?.label || 'Language'}</span>
               <ChevronDown size={12} className="text-ide-muted" />
             </button>
             {langDropdown && (
@@ -225,41 +265,32 @@ export function PlaygroundPanel() {
           {/* View mode toggle */}
           {hasPreview && (
             <div className="flex items-center gap-0.5 bg-ide-bg border border-ide-border rounded-md p-0.5">
-              <button
-                onClick={() => setViewMode('code')}
-                className={clsx(
-                  'flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors',
-                  viewMode === 'code' ? 'bg-ide-accent/20 text-ide-accent' : 'text-ide-muted hover:text-ide-text'
-                )}
-                title="Code only"
-              >
-                <Code2 size={11} />
-              </button>
-              <button
-                onClick={() => setViewMode('split')}
-                className={clsx(
-                  'flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors',
-                  viewMode === 'split' ? 'bg-ide-accent/20 text-ide-accent' : 'text-ide-muted hover:text-ide-text'
-                )}
-                title="Split view"
-              >
-                <Columns size={11} />
-              </button>
-              <button
-                onClick={() => setViewMode('preview')}
-                className={clsx(
-                  'flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors',
-                  viewMode === 'preview' ? 'bg-ide-accent/20 text-ide-accent' : 'text-ide-muted hover:text-ide-text'
-                )}
-                title="Preview only"
-              >
-                <Eye size={11} />
-              </button>
+              <button onClick={() => setViewMode('code')} className={clsx('p-1.5 rounded transition-colors', viewMode === 'code' ? 'bg-ide-accent/20 text-ide-accent' : 'text-ide-muted hover:text-ide-text')} title="Code only"><Code2 size={11} /></button>
+              <button onClick={() => setViewMode('split')} className={clsx('p-1.5 rounded transition-colors', viewMode === 'split' ? 'bg-ide-accent/20 text-ide-accent' : 'text-ide-muted hover:text-ide-text')} title="Split view"><Columns size={11} /></button>
+              <button onClick={() => setViewMode('preview')} className={clsx('p-1.5 rounded transition-colors', viewMode === 'preview' ? 'bg-ide-accent/20 text-ide-accent' : 'text-ide-muted hover:text-ide-text')} title="Preview only"><Eye size={11} /></button>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Snippets button */}
+          <button
+            onClick={() => setShowSnippets(true)}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-md text-[11px] text-ide-muted hover:text-ide-accent transition-colors"
+            title="Code snippets"
+          >
+            <Sparkles size={12} />
+          </button>
+
+          {/* Minimap toggle */}
+          <button
+            onClick={() => setMinimapEnabled(!minimapEnabled)}
+            className={clsx('p-1.5 rounded-md transition-colors', minimapEnabled ? 'text-ide-accent' : 'text-ide-muted hover:text-ide-text')}
+            title="Toggle minimap"
+          >
+            <MapIcon size={12} />
+          </button>
+
           {/* Export / Build menu */}
           <div className="relative">
             <button
@@ -275,87 +306,44 @@ export function PlaygroundPanel() {
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setExportMenu(false)} />
                 <div className="absolute top-full right-0 mt-1 z-20 bg-ide-surface border border-ide-border rounded-lg shadow-xl py-1 min-w-[200px]">
-                  <button
-                    onClick={handleDownload}
-                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-ide-surface-hover/50 transition-colors text-left"
-                  >
+                  <button onClick={handleDownload} className="w-full flex items-center gap-2 px-3 py-2 hover:bg-ide-surface-hover/50 transition-colors text-left">
                     <Download size={13} className="text-ide-muted" />
-                    <div>
-                      <div className="text-xs text-ide-text font-medium">Download File</div>
-                      <div className="text-[10px] text-ide-muted">Save current code</div>
-                    </div>
+                    <div><div className="text-xs text-ide-text font-medium">Download File</div><div className="text-[10px] text-ide-muted">Save current code</div></div>
                   </button>
                   {canBuildApp && (
-                    <button
-                      onClick={handleBuildApp}
-                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-ide-surface-hover/50 transition-colors text-left"
-                    >
+                    <button onClick={handleBuildApp} className="w-full flex items-center gap-2 px-3 py-2 hover:bg-ide-surface-hover/50 transition-colors text-left">
                       <Rocket size={13} className="text-ide-success" />
-                      <div>
-                        <div className="text-xs text-ide-text font-medium">Build HTML App</div>
-                        <div className="text-[10px] text-ide-muted">Standalone .html file</div>
-                      </div>
+                      <div><div className="text-xs text-ide-text font-medium">Build HTML App</div><div className="text-[10px] text-ide-muted">Standalone .html file</div></div>
                     </button>
                   )}
-                  <button
-                    onClick={handleDownloadZip}
-                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-ide-surface-hover/50 transition-colors text-left"
-                  >
+                  <button onClick={handleDownloadZip} className="w-full flex items-center gap-2 px-3 py-2 hover:bg-ide-surface-hover/50 transition-colors text-left">
                     <Package size={13} className="text-ide-warning" />
-                    <div>
-                      <div className="text-xs text-ide-text font-medium">Download Project ZIP</div>
-                      <div className="text-[10px] text-ide-muted">All files as .zip</div>
-                    </div>
+                    <div><div className="text-xs text-ide-text font-medium">Download ZIP</div><div className="text-[10px] text-ide-muted">All files as .zip</div></div>
                   </button>
-                  <button
-                    onClick={handleShare}
-                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-ide-surface-hover/50 transition-colors text-left"
-                  >
+                  <button onClick={handleShare} className="w-full flex items-center gap-2 px-3 py-2 hover:bg-ide-surface-hover/50 transition-colors text-left">
                     <Share2 size={13} className="text-ide-accent" />
-                    <div>
-                      <div className="text-xs text-ide-text font-medium">Share Code</div>
-                      <div className="text-[10px] text-ide-muted">Copy shareable link</div>
-                    </div>
+                    <div><div className="text-xs text-ide-text font-medium">Share Code</div><div className="text-[10px] text-ide-muted">Copy shareable link</div></div>
                   </button>
                   <div className="border-t border-ide-border my-1" />
-                  <button
-                    onClick={() => { setShowTemplates(true); setExportMenu(false); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-ide-surface-hover/50 transition-colors text-left"
-                  >
+                  <button onClick={() => { setShowTemplates(true); setExportMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 hover:bg-ide-surface-hover/50 transition-colors text-left">
                     <FilePlus size={13} className="text-ide-muted" />
-                    <div>
-                      <div className="text-xs text-ide-text font-medium">New Project</div>
-                      <div className="text-[10px] text-ide-muted">Start from a template</div>
-                    </div>
+                    <div><div className="text-xs text-ide-text font-medium">New Project</div><div className="text-[10px] text-ide-muted">Start from template</div></div>
                   </button>
                 </div>
               </>
             )}
           </div>
 
-          <button
-            onClick={handleCopy}
-            className="flex items-center gap-1 px-2 py-1.5 rounded text-[11px] text-ide-muted hover:text-ide-text transition-colors"
-            title="Copy code"
-          >
+          <button onClick={handleCopy} className="p-1.5 rounded text-[11px] text-ide-muted hover:text-ide-text transition-colors" title="Copy code">
             {copied ? <Check size={13} className="text-ide-success" /> : <Copy size={13} />}
           </button>
-          <button
-            onClick={clearOutput}
-            className="text-ide-muted hover:text-ide-danger transition-colors p-1.5"
-            title="Clear output"
-          >
+          <button onClick={clearOutput} className="text-ide-muted hover:text-ide-danger transition-colors p-1.5" title="Clear output">
             <Trash2 size={13} />
           </button>
           <button
             onClick={handleRun}
             disabled={isRunning}
-            className={clsx(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
-              isRunning
-                ? 'bg-ide-surface-hover text-ide-muted cursor-wait'
-                : 'bg-ide-success/20 text-ide-success hover:bg-ide-success/30'
-            )}
+            className={clsx('flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all', isRunning ? 'bg-ide-surface-hover text-ide-muted cursor-wait' : 'bg-ide-success/20 text-ide-success hover:bg-ide-success/30')}
           >
             {isRunning ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
             {isRunning ? 'Running…' : 'Run'}
@@ -375,28 +363,13 @@ export function PlaygroundPanel() {
               beforeMount={(monaco) => { monacoRef.current = monaco; }}
               onMount={(editor) => { editorRef.current = editor; }}
               onChange={(val) => setCode(val || '')}
-              options={{
-                fontSize,
-                fontFamily: 'JetBrains Mono, Fira Code, monospace',
-                fontLigatures: true,
-                minimap: { enabled: false },
-                scrollBeyondLastLine: false,
-                tabSize: 2,
-                automaticLayout: true,
-                cursorBlinking: 'smooth',
-                smoothScrolling: true,
-                padding: { top: 12, bottom: 12 },
-                wordWrap: 'on',
-                bracketPairColorization: { enabled: true },
-                formatOnPaste: true,
-                formatOnType: true,
-              }}
+              options={editorOptions}
             />
           </div>
         )}
 
         {viewMode === 'preview' && hasPreview && (
-          <LivePreview code={code} language={selectedLang} autoUpdate={true} />
+          <LivePreview code={code} language={selectedLang} autoUpdate={true} useProjectFiles={useProjectFiles} />
         )}
 
         {viewMode === 'split' && hasPreview && (
@@ -410,90 +383,58 @@ export function PlaygroundPanel() {
                 beforeMount={(monaco) => { monacoRef.current = monaco; }}
                 onMount={(editor) => { editorRef.current = editor; }}
                 onChange={(val) => setCode(val || '')}
-                options={{
-                  fontSize,
-                  fontFamily: 'JetBrains Mono, Fira Code, monospace',
-                  fontLigatures: true,
-                  minimap: { enabled: false },
-                  scrollBeyondLastLine: false,
-                  tabSize: 2,
-                  automaticLayout: true,
-                  cursorBlinking: 'smooth',
-                  smoothScrolling: true,
-                  padding: { top: 12, bottom: 12 },
-                  wordWrap: 'on',
-                  bracketPairColorization: { enabled: true },
-                  formatOnPaste: true,
-                  formatOnType: true,
-                }}
+                options={editorOptions}
               />
             </div>
             <div className={clsx('min-h-0 overflow-hidden', isMobile ? 'h-1/2' : 'w-1/2')}>
-              <LivePreview code={code} language={selectedLang} autoUpdate={true} />
+              <LivePreview code={code} language={selectedLang} autoUpdate={true} useProjectFiles={useProjectFiles} />
             </div>
           </div>
         )}
 
-        {/* Text output for non-preview languages */}
+        {/* Text output */}
         {(viewMode === 'code' || !hasPreview) && (outputLines.length > 0 || isRunning) && (
           <div className="absolute bottom-0 left-0 right-0 border-t border-ide-border bg-ide-bg flex flex-col max-h-[40%] shrink-0">
             <div className="flex items-center justify-between px-3 py-1.5 bg-ide-surface/50 border-b border-ide-border">
               <span className="text-[10px] font-semibold text-ide-muted uppercase tracking-wide">Output</span>
               {isRunning && <span className="text-[10px] text-ide-accent flex items-center gap-1"><Loader2 size={10} className="animate-spin" />{runStatus}</span>}
-              {!isRunning && runStatus && <span className="text-[10px] text-ide-muted">{runStatus}</span>}
             </div>
             <div className="overflow-y-auto p-2 font-mono text-xs max-h-32">
               {outputLines.map((line, i) => (
-                <div
-                  key={i}
-                  className={clsx(
-                    'whitespace-pre-wrap break-words py-0.5',
-                    line.type === 'error' && 'text-ide-danger',
-                    line.type === 'success' && 'text-ide-success',
-                    line.type === 'info' && 'text-ide-muted',
-                    line.type === 'output' && 'text-ide-text'
-                  )}
-                >
+                <div key={i} className={clsx('whitespace-pre-wrap break-words py-0.5', line.type === 'error' && 'text-ide-danger', line.type === 'success' && 'text-ide-success', line.type === 'output' && 'text-ide-text')}>
                   {line.text}
                 </div>
               ))}
-              {isRunning && (
-                <div className="flex items-center gap-2 py-1 text-ide-accent">
-                  <Loader2 size={12} className="animate-spin" />
-                  <span className="text-xs">{runStatus}</span>
-                </div>
-              )}
             </div>
           </div>
         )}
       </div>
 
-      {/* Toast notification */}
+      {/* Toast */}
       {toast && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-ide-surface border border-ide-accent/30 rounded-lg px-4 py-2 shadow-xl animate-slide-up">
           <p className="text-xs text-ide-accent">{toast}</p>
         </div>
       )}
 
-      {/* New Project templates modal */}
+      {/* Snippets panel */}
+      {showSnippets && (
+        <SnippetsPanel language={selectedLang} onInsert={handleInsertSnippet} onClose={() => setShowSnippets(false)} />
+      )}
+
+      {/* Templates modal */}
       {showTemplates && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
           <div className="bg-ide-surface border border-ide-border rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-ide-border">
               <h2 className="text-sm font-semibold text-ide-text">New Project</h2>
-              <button onClick={() => setShowTemplates(false)} className="text-ide-muted hover:text-ide-text">
-                <X size={18} />
-              </button>
+              <button onClick={() => setShowTemplates(false)} className="text-ide-muted hover:text-ide-text"><X size={18} /></button>
             </div>
             <div className="overflow-y-auto p-4">
-              <p className="text-xs text-ide-muted mb-3">Pick a template to start building. This will replace your current files.</p>
+              <p className="text-xs text-ide-muted mb-3">Pick a template. This replaces your current files.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {PROJECT_TEMPLATES.map(tpl => (
-                  <button
-                    key={tpl.id}
-                    onClick={() => handleNewProject(tpl)}
-                    className="flex items-start gap-3 p-4 rounded-lg border border-ide-border bg-ide-bg hover:border-ide-accent hover:bg-ide-surface-hover/30 transition-all text-left"
-                  >
+                  <button key={tpl.id} onClick={() => handleNewProject(tpl)} className="flex items-start gap-3 p-4 rounded-lg border border-ide-border bg-ide-bg hover:border-ide-accent hover:bg-ide-surface-hover/30 transition-all text-left">
                     <span className="text-2xl">{tpl.icon}</span>
                     <div>
                       <div className="text-sm font-semibold text-ide-text">{tpl.label}</div>
@@ -514,24 +455,13 @@ export function PlaygroundPanel() {
           <div className="bg-ide-surface border border-ide-border rounded-xl shadow-2xl w-full max-w-md p-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-ide-text">Share Code</h2>
-              <button onClick={() => setShareUrl('')} className="text-ide-muted hover:text-ide-text">
-                <X size={18} />
-              </button>
+              <button onClick={() => setShareUrl('')} className="text-ide-muted hover:text-ide-text"><X size={18} /></button>
             </div>
             <p className="text-xs text-ide-muted mb-2">Anyone with this link can open and run your code:</p>
             <div className="flex items-center gap-2">
-              <input
-                readOnly
-                value={shareUrl}
-                className="flex-1 bg-ide-bg border border-ide-border rounded-md px-3 py-2 text-xs text-ide-text outline-none"
-                onClick={(e) => (e.target as HTMLInputElement).select()}
-              />
-              <button
-                onClick={() => { navigator.clipboard.writeText(shareUrl); showToast('Copied!'); }}
-                className="px-3 py-2 rounded-md bg-ide-accent/20 text-ide-accent text-xs font-medium hover:bg-ide-accent/30"
-              >
-                <Copy size={12} className="inline mr-1" />
-                Copy
+              <input readOnly value={shareUrl} className="flex-1 bg-ide-bg border border-ide-border rounded-md px-3 py-2 text-xs text-ide-text outline-none" onClick={(e) => (e.target as HTMLInputElement).select()} />
+              <button onClick={() => { navigator.clipboard.writeText(shareUrl); showToast('Copied!'); }} className="px-3 py-2 rounded-md bg-ide-accent/20 text-ide-accent text-xs font-medium hover:bg-ide-accent/30">
+                <Copy size={12} className="inline mr-1" />Copy
               </button>
             </div>
           </div>
