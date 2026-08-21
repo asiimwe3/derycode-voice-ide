@@ -1,114 +1,111 @@
 import { create } from 'zustand';
-
-export interface FileNode {
-  path: string;
-  name: string;
-  type: 'file' | 'folder';
-  content?: string;
-  children?: FileNode[];
-}
+import { fileSystem, FileEntry } from '@/lib/fileSystem';
 
 export interface OpenTab {
   path: string;
   name: string;
   content: string;
   dirty: boolean;
+  language: string;
+}
+
+export type ThemeName = 'dark' | 'light' | 'midnight' | 'solarized';
+
+export interface TerminalLine {
+  text: string;
+  type: 'command' | 'output' | 'error' | 'info';
 }
 
 interface IDEState {
-  // File system
-  files: FileNode[];
+  // Files
+  files: FileEntry[];
   openTabs: OpenTab[];
   activeTab: string | null;
+  expandedFolders: Set<string>;
 
-  // Actions
+  // Actions: files
+  loadFiles: () => Promise<void>;
   openFile: (path: string) => void;
   closeTab: (path: string) => void;
   updateFileContent: (path: string, content: string) => void;
   setActiveTab: (path: string) => void;
-  createFile: (path: string, content?: string) => void;
-  deleteFile: (path: string) => void;
+  createFile: (path: string, content?: string) => Promise<void>;
+  createFolder: (path: string) => Promise<void>;
+  deleteFile: (path: string) => Promise<void>;
+  renameFile: (oldPath: string, newPath: string) => Promise<void>;
+  saveFile: (path: string) => Promise<void>;
+  toggleFolder: (path: string) => void;
 
-  // Voice state
+  // Voice
   isListening: boolean;
   setListening: (v: boolean) => void;
   voiceTranscript: string;
   setVoiceTranscript: (v: string) => void;
+  voiceFeedback: string;
+  setVoiceFeedback: (v: string) => void;
 
-  // UI state
+  // UI
   sidebarVisible: boolean;
   toggleSidebar: () => void;
+  setSidebarVisible: (v: boolean) => void;
   terminalVisible: boolean;
   toggleTerminal: () => void;
+  setTerminalVisible: (v: boolean) => void;
+  commandPaletteOpen: boolean;
+  setCommandPaletteOpen: (v: boolean) => void;
+  settingsOpen: boolean;
+  setSettingsOpen: (v: boolean) => void;
+  minimapVisible: boolean;
+  toggleMinimap: () => void;
+  fontSize: number;
+  setFontSize: (n: number) => void;
+
+  // Theme
+  theme: ThemeName;
+  setTheme: (t: ThemeName) => void;
+
+  // Terminal
+  terminalLines: TerminalLine[];
+  addTerminalLine: (line: TerminalLine) => void;
+  clearTerminal: () => void;
+
+  // Search
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
 }
 
-// Seed with a welcome file
-const initialFiles: FileNode[] = [
-  {
-    path: '/',
-    name: 'root',
-    type: 'folder',
-    children: [
-      {
-        path: '/src',
-        name: 'src',
-        type: 'folder',
-        children: [
-          {
-            path: '/src/index.tsx',
-            name: 'index.tsx',
-            type: 'file',
-            content: `// Welcome to Derycode Voice IDE
-// Press the mic button or say "start listening" to begin
-
-console.log("Hello, Derycode!");
-
-function greet(name: string): string {
-  return \`Hello, \${name}!\`;
-}
-
-export default greet;
-`,
-          },
-          {
-            path: '/src/utils.ts',
-            name: 'utils.ts',
-            type: 'file',
-            content: `export function debounce<T extends (...args: any[]) => void>(
-  fn: T,
-  delay: number
-): (...args: Parameters<T>) => void {
-  let timer: ReturnType<typeof setTimeout>;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), delay);
+export function getLanguage(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  const map: Record<string, string> = {
+    ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+    json: 'json', md: 'markdown', css: 'css', html: 'html', xml: 'xml',
+    py: 'python', go: 'go', rs: 'rust', java: 'java', cpp: 'cpp', c: 'c',
+    sh: 'shell', yml: 'yaml', yaml: 'yaml', toml: 'toml', sql: 'sql',
+    graphql: 'graphql', vue: 'html', svelte: 'html', php: 'php', rb: 'ruby',
+    swift: 'swift', kt: 'kotlin', dart: 'dart', lua: 'lua', r: 'r',
+    txt: 'plaintext', env: 'plaintext', dockerfile: 'dockerfile',
   };
+  return map[ext] || 'plaintext';
 }
-`,
-          },
-        ],
-      },
-      {
-        path: '/README.md',
-        name: 'README.md',
-        type: 'file',
-        content: '# My Project\n\nBuilt with Derycode Voice IDE.\n',
-      },
-    ],
-  },
-];
 
 export const useIDEStore = create<IDEState>((set, get) => ({
-  files: initialFiles,
+  files: [],
   openTabs: [],
   activeTab: null,
+  expandedFolders: new Set(['/']),
+
+  loadFiles: async () => {
+    await fileSystem.seedSampleProject();
+    const files = await fileSystem.getAll();
+    set({ files });
+  },
 
   openFile: (path) => {
     const state = get();
-    const file = findFile(state.files, path);
+    const file = state.files.find(f => f.path === path);
     if (!file || file.type !== 'file') return;
 
-    if (state.openTabs.some((t) => t.path === path)) {
+    if (state.openTabs.some(t => t.path === path)) {
       set({ activeTab: path });
       return;
     }
@@ -119,6 +116,7 @@ export const useIDEStore = create<IDEState>((set, get) => ({
         name: file.name,
         content: file.content || '',
         dirty: false,
+        language: getLanguage(file.name),
       }],
       activeTab: path,
     });
@@ -126,7 +124,7 @@ export const useIDEStore = create<IDEState>((set, get) => ({
 
   closeTab: (path) => {
     const state = get();
-    const newTabs = state.openTabs.filter((t) => t.path !== path);
+    const newTabs = state.openTabs.filter(t => t.path !== path);
     const newActive = state.activeTab === path
       ? (newTabs[newTabs.length - 1]?.path ?? null)
       : state.activeTab;
@@ -134,8 +132,8 @@ export const useIDEStore = create<IDEState>((set, get) => ({
   },
 
   updateFileContent: (path, content) => {
-    set((state) => ({
-      openTabs: state.openTabs.map((t) =>
+    set(state => ({
+      openTabs: state.openTabs.map(t =>
         t.path === path ? { ...t, content, dirty: true } : t
       ),
     }));
@@ -143,23 +141,77 @@ export const useIDEStore = create<IDEState>((set, get) => ({
 
   setActiveTab: (path) => set({ activeTab: path }),
 
-  createFile: (path, content = '') => {
-    set((state) => {
-      const newFile: FileNode = { path, name: path.split('/').pop() || 'untitled', type: 'file', content };
-      return {
-        files: addToTree(state.files, newFile),
-        openTabs: [...state.openTabs, { path, name: newFile.name, content, dirty: false }],
-        activeTab: path,
-      };
+  createFile: async (path, content = '') => {
+    const parentPath = path.substring(0, path.lastIndexOf('/')) || '/';
+    const name = path.split('/').pop() || 'untitled';
+    await fileSystem.create({
+      path, name, type: 'file', content,
+      parentId: parentPath,
+      createdAt: Date.now(), updatedAt: Date.now(),
+    });
+    const files = await fileSystem.getAll();
+    set(state => ({
+      files,
+      openTabs: [...state.openTabs, { path, name, content, dirty: false, language: getLanguage(name) }],
+      activeTab: path,
+    }));
+  },
+
+  createFolder: async (path) => {
+    const parentPath = path.substring(0, path.lastIndexOf('/')) || '/';
+    const name = path.split('/').pop() || 'folder';
+    await fileSystem.create({
+      path, name, type: 'folder',
+      parentId: parentPath,
+      createdAt: Date.now(), updatedAt: Date.now(),
+    });
+    const files = await fileSystem.getAll();
+    set({ files });
+  },
+
+  deleteFile: async (path) => {
+    await fileSystem.delete(path);
+    const files = await fileSystem.getAll();
+    set(state => ({
+      files,
+      openTabs: state.openTabs.filter(t => t.path !== path),
+      activeTab: state.activeTab === path ? null : state.activeTab,
+    }));
+  },
+
+  renameFile: async (oldPath, newPath) => {
+    await fileSystem.rename(oldPath, newPath);
+    const files = await fileSystem.getAll();
+    const state = get();
+    const name = newPath.split('/').pop() || 'untitled';
+    set({
+      files,
+      openTabs: state.openTabs.map(t =>
+        t.path === oldPath
+          ? { ...t, path: newPath, name, language: getLanguage(name) }
+          : t
+      ),
+      activeTab: state.activeTab === oldPath ? newPath : state.activeTab,
     });
   },
 
-  deleteFile: (path) => {
-    set((state) => ({
-      files: removeFromTree(state.files, path),
-      openTabs: state.openTabs.filter((t) => t.path !== path),
-      activeTab: state.activeTab === path ? null : state.activeTab,
+  saveFile: async (path) => {
+    const state = get();
+    const tab = state.openTabs.find(t => t.path === path);
+    if (!tab) return;
+    await fileSystem.update(path, { content: tab.content });
+    set(state => ({
+      openTabs: state.openTabs.map(t => t.path === path ? { ...t, dirty: false } : t),
     }));
+  },
+
+  toggleFolder: (path) => {
+    set(state => {
+      const expanded = new Set(state.expandedFolders);
+      if (expanded.has(path)) expanded.delete(path);
+      else expanded.add(path);
+      return { expandedFolders: expanded };
+    });
   },
 
   // Voice
@@ -167,40 +219,39 @@ export const useIDEStore = create<IDEState>((set, get) => ({
   setListening: (v) => set({ isListening: v }),
   voiceTranscript: '',
   setVoiceTranscript: (v) => set({ voiceTranscript: v }),
+  voiceFeedback: '',
+  setVoiceFeedback: (v) => set({ voiceFeedback: v }),
 
   // UI
   sidebarVisible: true,
-  toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
+  toggleSidebar: () => set(s => ({ sidebarVisible: !s.sidebarVisible })),
+  setSidebarVisible: (v) => set({ sidebarVisible: v }),
   terminalVisible: false,
-  toggleTerminal: () => set((s) => ({ terminalVisible: !s.terminalVisible })),
+  toggleTerminal: () => set(s => ({ terminalVisible: !s.terminalVisible })),
+  setTerminalVisible: (v) => set({ terminalVisible: v }),
+  commandPaletteOpen: false,
+  setCommandPaletteOpen: (v) => set({ commandPaletteOpen: v }),
+  settingsOpen: false,
+  setSettingsOpen: (v) => set({ settingsOpen: v }),
+  minimapVisible: false,
+  toggleMinimap: () => set(s => ({ minimapVisible: !s.minimapVisible })),
+  fontSize: 14,
+  setFontSize: (n) => set({ fontSize: n }),
+
+  // Theme
+  theme: 'dark',
+  setTheme: (t) => {
+    document.documentElement.setAttribute('data-theme', t);
+    set({ theme: t });
+    fileSystem.setSetting('theme', t);
+  },
+
+  // Terminal
+  terminalLines: [{ text: 'Derycode Voice IDE Terminal v0.2.0', type: 'info' }],
+  addTerminalLine: (line) => set(state => ({ terminalLines: [...state.terminalLines, line] })),
+  clearTerminal: () => set({ terminalLines: [] }),
+
+  // Search
+  searchQuery: '',
+  setSearchQuery: (q) => set({ searchQuery: q }),
 }));
-
-// Helpers
-function findFile(nodes: FileNode[], path: string): FileNode | null {
-  for (const node of nodes) {
-    if (node.path === path) return node;
-    if (node.children) {
-      const found = findFile(node.children, path);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-function addToTree(nodes: FileNode[], file: FileNode): FileNode[] {
-  // Simple: add to root folder's children
-  const root = nodes[0];
-  if (root && root.children) {
-    root.children.push(file);
-  }
-  return [...nodes];
-}
-
-function removeFromTree(nodes: FileNode[], path: string): FileNode[] {
-  return nodes
-    .filter((n) => n.path !== path)
-    .map((n) => ({
-      ...n,
-      children: n.children ? removeFromTree(n.children, path) : undefined,
-    }));
-}
